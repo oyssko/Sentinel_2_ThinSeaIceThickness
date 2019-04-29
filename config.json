@@ -1,0 +1,23 @@
+{
+  "atmospheric_correction": {
+
+  },
+  "cloudmask": {
+    "average_over": 1,
+    "dilation": 3,
+    "threshold": 0.3
+  },
+  "landmask": {
+    "detailed": true
+  },
+  "projection": {
+    "crs": "source_crs",
+    "pixel_res": 100
+  },
+  "SIT_model": {
+
+  },
+  "watermask": {
+
+  }
+}
