@@ -108,7 +108,8 @@ def apply_landmask(rasterfp, detail=True, keep_land=False, mask_only=False):
 
 
 def apply_cloudmask(S2DotSafefp=None, bands=None, threshold=0.4, dilation_size=1,
-					average_over=1, resolution_safe=100, save_mask=None):
+					average_over=1, resolution_safe=100, save_mask=None, crs=None,
+					affine=None):
 	"""
 	Function for applying cloud mask to either S2 product in safe format or a multiple rasters
 	in numpy ndarray format. ndarray format is reccomended
@@ -122,12 +123,13 @@ def apply_cloudmask(S2DotSafefp=None, bands=None, threshold=0.4, dilation_size=1
 	"""
 	if S2DotSafefp is not None:
 		res = np.array([60, 10, 10, 20, 10, 20, 60, 60, 20, 20])
-		bands = ['B01', 'B02', 'B04', 'B05', 'B08', 'B8A', 'B09', 'B10', 'B11', 'B12']
+		bands_ = ['B01', 'B02', 'B04', 'B05', 'B08', 'B8A', 'B09', 'B10', 'B11', 'B12']
 		S2rasters = [glob(os.path.join(S2DotSafefp, 'GRANULE', 'L*', 'IMG_DATA','*{}*'.format(band)))[0]
-					 for band in bands]
+					 for band in bands_]
 
 		afftr = res/resolution_safe
 		S2_cloud_bands = []
+
 		for i, raster in enumerate(S2rasters):
 			with rasterio.open(raster) as src:
 				arr = src.read().astype('float32')/10000
@@ -149,15 +151,60 @@ def apply_cloudmask(S2DotSafefp=None, bands=None, threshold=0.4, dilation_size=1
 
 		S2_cloud_bands = np.expand_dims(S2_cloud_bands, axis=0)
 
-		mask = S2PixelCloudDetector(threshold=threshold,
+		cloudmask = S2PixelCloudDetector(threshold=threshold,
 									dilation_size=dilation_size,
 									average_over=average_over,
 									all_bands=False).get_cloud_masks(S2_cloud_bands)
+
+		# save mask if path is specified
 		if save_mask is not None:
 			with rasterio.open(S2rasters[0]) as src:
-				crs = src.crs
-				with rasterio.open(save_mask, 'w')
-		return mask
+				kwargs = src.profile
+				kwargs['width'] = cloudmask.shape[1]
+				kwargs['height'] = cloudmask.shape[2]
+				kwargs['transform'] = new_aff
+				kwargs['driver'] = 'Gtiff'
+				kwargs['dtype'] = cloudmask.dtype
+				kwargs['blockxsize'] = 128
+				kwargs['blockysize'] = 128
+
+				with rasterio.open(save_mask, 'w', **kwargs) as dst:
+					dst.write(cloudmask)
+		# return the cloudmask as np ndarray
+		return cloudmask
+
+	elif bands is not None:
+
+		cloudmask = S2PixelCloudDetector(threshold=threshold,
+										 dilation_size=dilation_size,
+										 average_over=average_over,
+										 all_bands=False).get_cloud_masks(bands)
+
+		# save mask if path is specified
+		if save_mask is not None and crs is not None:
+			kwargs = {
+				'driver': 'GTiff',
+				'interleave': 'band',
+				'tiled': True,
+				'blockxsize': 128,
+				'blockysize': 128,
+				'nodata': 0,
+				'dtype': cloudmask.dtype,
+				'height': cloudmask.shape[1],
+				'width': cloudmask.shape[2],
+				'crs': crs,
+				'transform': affine
+			}
+
+			with rasterio.open(save_mask, 'w', **kwargs) as dst:
+				dst.write(cloudmask)
+		elif save_mask is not None and crs is None:
+			raise ValueError("To save the mask, crs needs to be provided")
+		# return the cloudmask as np ndarray
+		return cloudmask
+	else:
+		raise ValueError("You need to provide a path to a Sentinel-2 .safe file, or a numpy ndarray consisting of the bands")
+
 
 
 
