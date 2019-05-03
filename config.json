@@ -1,6 +1,7 @@
 {
-  "atmospheric_correction": {
-
+  "AC_ACOLITE": {
+    "target_res": 60,
+    "settings_fp": "acolite_setting.txt"
   },
   "cloudmask": {
     "average_over": 1,
@@ -18,6 +19,6 @@
 
   },
   "watermask": {
-
+    "NDWI_Threshold": "some value"
   }
 }
