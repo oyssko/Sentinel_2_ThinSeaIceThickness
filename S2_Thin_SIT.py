@@ -54,6 +54,8 @@ print("Extracting land mask:")
 land_mask = apply_landmask(temp_raster, detail=True, mask_only=True)
 if land_mask is None:
     land_mask = np.zeros_like(S2_TOAbands[..., 0]) == 1
+else:
+	land_mask = land_mask[0]==1
 print("Extracting land mask done")
 """If you want to estimate on boa values"""
 if BOA:
