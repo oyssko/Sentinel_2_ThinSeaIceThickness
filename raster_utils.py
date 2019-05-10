@@ -2,6 +2,7 @@ import rasterio
 import fiona
 import rasterio.warp as warp
 from rasterio.mask import mask
+from rasterio.warp import Resampling
 import os
 from glob import glob
 import numpy as np
@@ -9,7 +10,126 @@ from shapely.geometry import mapping, shape
 from affine import Affine
 from pyproj import Proj, transform
 from s2cloudless import S2PixelCloudDetector
+import subprocess
 
+
+def resampling_method(method):
+    if method == 'nearest':
+        return Resampling.nearest
+    elif method == 'bilinear':
+        return Resampling.bilinear
+    elif method == 'cubic':
+        return Resampling.cubic
+    elif method == 'cubic_spline':
+        return Resampling.cubic_spline
+    elif method == 'lanczos':
+        return Resampling.lanczos
+    elif method == 'average':
+        return Resampling.average
+    elif method == 'mode':
+        return Resampling.mode
+    elif method == 'max':
+        return Resampling.max
+    elif method == 'min':
+        return Resampling.min
+    elif method == 'med':
+        return Resampling.med
+    elif method == 'q1':
+        return Resampling.q1
+    elif method == 'q3':
+        return Resampling.q3
+    else:
+        raise ValueError("Invalid method, does not exist, check rasterio.warp.Resampling for reference.")
+
+def read_S2TOA(S2_SAFE_fp, pixel_res, temp, resample='bilinear'):
+    bands = ['B01', 'B02', 'B03', 'B04', 'B05', 'B06', 'B07', 'B08', 'B8A', 'B09','B10', 'B11', 'B12']
+    res = np.array([60, 10, 10, 10, 20, 20, 20, 10, 20, 60,60, 20, 20])
+    # list of rasters
+    S2rasters = [glob(os.path.join(S2_SAFE_fp, 'GRANULE', 'L*', 'IMG_DATA', '*{}*'.format(band)))[0]
+                 for band in bands]
+    afftr = res / pixel_res
+    S2_bands = []
+    for i, band in enumerate(S2rasters):
+        print("Band ", i + 1)
+        with rasterio.open(band) as src:
+            arr = src.read().astype('float32') / 10000
+            aff = src.transform
+            new_aff = Affine(aff.a / afftr[i], aff.b, aff.c,
+                             aff.d, aff.e / afftr[i], aff.f)
+            kwargs = src.profile
+            kwargs.update({"transform": new_aff,
+                           "driver": 'GTiff',
+                           "dtype": arr.dtype,
+                           "nodata": src.profile['nodata']})
+            newarr = np.empty(shape=(arr.shape[0],
+                                     int(round(arr.shape[1] * afftr[i])),
+                                     int(round(arr.shape[2] * afftr[i]))), dtype='float32')
+            warp.reproject(arr, newarr,
+                           src_transform=aff,
+                           dst_transform=new_aff,
+                           src_crs=src.crs,
+                           dst_crs=src.crs,
+                           resampling=resampling_method(resample))
+            S2_bands.append(newarr)
+            print(newarr.shape)
+            if i ==0:
+                temp_raster = os.path.join(temp, 'temp_raster.tif')
+                kwargs.update({'width': newarr.shape[1],
+                               'height': newarr.shape[2]})
+                with rasterio.open(temp_raster, 'w', **kwargs) as dst:
+                    dst.write(newarr)
+
+
+    S2_bands = np.concatenate(S2_bands, axis=0).transpose(1, 2, 0)
+
+    return S2_bands, temp_raster
+
+def apply_acolite(S2_SAFE_fp,output, S2_target_res):
+
+    """
+    Create settings file for ACOLITE AC processor for multiple tiles and saves it in the
+    working directory as "aculite_settings.txt". For any other settings, look at the aculite_config.txt
+    in aculite_py_win/config folder
+
+    :param inputfolder: folder with all the S2 level 1 products in SAFE format
+    :param output: Output folder for
+    :param s2_target_res: Resolotion for processed produce
+    :param merge_tiles: if you do not wish to merge, make this False
+    :return: settings
+    """
+    inputfiles = 'inputfile='+S2_SAFE_fp+'\n'
+    outputfile = 'output=' + output + '\n'
+    l2w = 'l2w_parameters=rhos_*\n'
+    target_res = 's2_target_res=' + str(S2_target_res) + '\n'
+    settings = inputfiles + outputfile + l2w + target_res
+
+    with open("acolite_settings.txt", 'w') as dst:
+        dst.write(settings)
+
+    cwd = os.getcwd()
+    acolitefp = r'acolite_py_win/dist/acolite'
+    os.chdir(acolitefp)
+    comm = r'acolite.exe --cli --settings="..\..\..\acolite_settings.txt"'
+    subprocess.run(comm, shell=True)
+    os.chdir(cwd)
+
+def read_acolite(Acolite_fp):
+
+    if os.path.basename(glob(os.path.join(Acolite_fp,'S2*'))[0])[:3]=='S2B':
+        bands = ['442', '492', '559', '665', '704', '739', '780', '833', '864', '1610', '2186', ]
+    else:
+        bands = ['443', '492', '560', '665', '704', '740', '783', '833', '865', '1614', '2202']
+    S2_BOA_bands = []
+    for i, band in enumerate(bands):
+        print("Band ", i+1, ':', bands[i])
+        rhos_ = glob(os.path.join(Acolite_fp, '*rhos_' + band + '.tif'))[0]
+        with rasterio.open(rhos_) as acsrc:
+            arr = acsrc.read()
+            S2_BOA_bands.append(arr)
+
+    S2_BOA_bands = np.concatenate(S2_BOA_bands, axis=0).transpose(1, 2, 0)
+
+    return S2_BOA_bands
 
 def createFootprint(pathname):
     """
@@ -108,9 +228,9 @@ def apply_landmask(rasterfp, detail=True, keep_land=False, mask_only=False):
         if mask_only:
             mask_only_raster = np.zeros_like(landmasked_raster)
             mask_only_raster[0] = (landmasked_raster[0] == 0).astype('uint16')
-            return mask_only_raster, kwargs
+            return mask_only_raster
         else:
-            return landmasked_raster, kwargs
+            return landmasked_raster
 
 
 def apply_cloudmask(S2DotSafefp=None, bands=None, threshold=0.4, dilation_size=3,
@@ -227,3 +347,7 @@ def apply_cloudmask(S2DotSafefp=None, bands=None, threshold=0.4, dilation_size=3
     else:
         raise ValueError(
             "You need to provide a path to a Sentinel-2 .safe file, or a numpy ndarray consisting of the bands")
+
+def Water_mask(S2_ndarray, threshold):
+
+    pass
