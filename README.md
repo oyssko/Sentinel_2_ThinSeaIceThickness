@@ -7,7 +7,7 @@ Created for Øystein F. Skogvold's Master Thesis project, "Arctic Thin Sea Ice Th
 1. Clone or download repository
 2. Create a virtual environment and activate
 	1. `>conda create -n venv python=3.6`
-	2. `>conda activate venv´
+	2. ´>conda activate venv´
 3. For installing the required packaged for running the scripts, first install the Rasterio package with the [guide](https://rasterio.readthedocs.io/en/stable/installation.html) from Rasterio documentation.
 4. Install required python packages from requirements.txt
 	1. `pip install -r requirements.txt´
