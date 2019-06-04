@@ -23,7 +23,7 @@ required = parser.add_argument_group("required arguments")
 
 required.add_argument('--S2_safe_fp', help="Path to Sentinel 2 .safe file", required=True)
 required.add_argument('--output_folder', help="output folder for SIT estimate raster", required=True)
-required.add_argument('--pixel_res', type=int, help="Pixel resolotion of output, either 10, 20 or 60 m. Default=20",
+required.add_argument('--pixel_res', type=int, help="Pixel resolotion of output, either 10, 20 or 60 m. Default=60",
                       default=60)
 required.add_argument('--BOA', help="Use BOA reflectance values from Acolite", action='store_true')
 required.add_argument('--DOS', help='Apply DOS', action='store_true')
@@ -56,7 +56,7 @@ else:
     else:
         print("Estimating SIT with TOA band reflectance values.")
 
-with open("mask_config.json") as conf:
+with open("config.json") as conf:
     config = json.load(conf)
 
 if DOS and BOA:

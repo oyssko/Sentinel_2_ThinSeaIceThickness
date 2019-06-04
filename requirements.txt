@@ -1,0 +1,6 @@
+lightgbm==2.2.4
+affine==2.2.2
+fiona==1.8.6
+rasterio==1.0.23
+s2cloudless==1.2.2
+Shapely==1.6.4.post2

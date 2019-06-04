@@ -1,8 +1,4 @@
 {
-  "AC_ACOLITE": {
-    "target_res": 60,
-    "settings_fp": "acolite_setting.txt"
-  },
   "cloudmask": {
     "average_over": 1,
     "dilation": 3,
@@ -11,14 +7,5 @@
   "landmask": {
     "detailed": true
   },
-  "projection": {
-    "crs": "source_crs",
-    "pixel_res": 100
-  },
-  "SIT_model": {
-
-  },
-  "watermask": {
-    "NDWI_Threshold": "some value"
-  }
+  "resampling": "average"
 }
