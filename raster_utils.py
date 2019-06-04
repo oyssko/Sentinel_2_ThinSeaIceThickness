@@ -41,7 +41,7 @@ def resampling_method(method):
     else:
         raise ValueError("Invalid method, does not exist, check rasterio.warp.Resampling for reference.")
 
-def read_S2TOA(S2_SAFE_fp, pixel_res, temp, resample='bilinear'):
+def read_S2TOA(S2_SAFE_fp, pixel_res, temp=None, resample='average'):
     bands = ['B01', 'B02', 'B03', 'B04', 'B05', 'B06', 'B07', 'B08', 'B8A', 'B09','B10', 'B11', 'B12']
     res = np.array([60, 10, 10, 10, 20, 20, 20, 10, 20, 60,60, 20, 20])
     # list of rasters
@@ -53,36 +53,47 @@ def read_S2TOA(S2_SAFE_fp, pixel_res, temp, resample='bilinear'):
         print("Band ", i + 1)
         with rasterio.open(band) as src:
             arr = src.read().astype('float32') / 10000
-            aff = src.transform
-            new_aff = Affine(aff.a / afftr[i], aff.b, aff.c,
-                             aff.d, aff.e / afftr[i], aff.f)
             kwargs = src.profile
-            kwargs.update({"transform": new_aff,
-                           "driver": 'GTiff',
-                           "dtype": arr.dtype,
-                           "nodata": src.profile['nodata']})
-            newarr = np.empty(shape=(arr.shape[0],
-                                     int(round(arr.shape[1] * afftr[i])),
-                                     int(round(arr.shape[2] * afftr[i]))), dtype='float32')
-            warp.reproject(arr, newarr,
-                           src_transform=aff,
-                           dst_transform=new_aff,
-                           src_crs=src.crs,
-                           dst_crs=src.crs,
-                           resampling=resampling_method(resample))
-            S2_bands.append(newarr)
-            print(newarr.shape)
-            if i ==0:
-                temp_raster = os.path.join(temp, 'temp_raster.tif')
-                kwargs.update({'width': newarr.shape[1],
-                               'height': newarr.shape[2]})
-                with rasterio.open(temp_raster, 'w', **kwargs) as dst:
-                    dst.write(newarr)
+            if res[i] == pixel_res:
+                S2_bands.append(arr)
+                if temp is not None:
+                    temp_raster = os.path.join(temp, 'temp_raster.tif')
+                    kwargs.update({'width': arr.shape[1],
+                                   'height': arr.shape[2],
+                                   "driver": 'GTiff',
+                                   "dtype": arr.dtype,
+                                   "nodata": src.profile['nodata']})
+                    with rasterio.open(temp_raster, 'w', **kwargs) as dst:
+                        dst.write(arr)
+                continue
+            else:
+                aff = src.transform
+                new_aff = Affine(aff.a / afftr[i], aff.b, aff.c,
+                                 aff.d, aff.e / afftr[i], aff.f)
+
+                kwargs.update({"transform": new_aff,
+                               "driver": 'GTiff',
+                               "dtype": arr.dtype,
+                               "nodata": src.profile['nodata']})
+                newarr = np.empty(shape=(arr.shape[0],
+                                         int(round(arr.shape[1] * afftr[i])),
+                                         int(round(arr.shape[2] * afftr[i]))), dtype='float32')
+                warp.reproject(arr, newarr,
+                               src_transform=aff,
+                               dst_transform=new_aff,
+                               src_crs=src.crs,
+                               dst_crs=src.crs,
+                               resampling=resampling_method(resample))
+                S2_bands.append(newarr)
+
+
 
 
     S2_bands = np.concatenate(S2_bands, axis=0).transpose(1, 2, 0)
-
-    return S2_bands, temp_raster
+    if temp is not None:
+        return S2_bands, temp_raster
+    else:
+        return S2_bands
 
 def apply_acolite(S2_SAFE_fp,output, S2_target_res):
 
@@ -120,8 +131,36 @@ def read_acolite(Acolite_fp):
     else:
         bands = ['443', '492', '560', '665', '704', '740', '783', '833', '865', '1614', '2202']
     S2_BOA_bands = []
+    """
+    afftr = 10 / pixel_res
     for i, band in enumerate(bands):
         print("Band ", i+1, ':', bands[i])
+        rhos_ = glob(os.path.join(Acolite_fp, '*rhos_' + band + '.tif'))[0]
+        with rasterio.open(rhos_) as acsrc:
+            arr = acsrc.read()
+            aff = acsrc.transform
+            new_aff = Affine(aff.a / afftr, aff.b, aff.c,
+                             aff.d, aff.e / afftr, aff.f)
+            kwargs = acsrc.profile
+            kwargs.update({"transform": new_aff,
+                           "driver": 'GTiff',
+                           "dtype": arr.dtype,
+                           "nodata": acsrc.profile['nodata']})
+            newarr = np.empty(shape=(arr.shape[0],
+                                     int(round(arr.shape[1] * afftr)),
+                                     int(round(arr.shape[2] * afftr))), dtype='float32')
+            warp.reproject(arr, newarr,
+                           src_transform=aff,
+                           dst_transform=new_aff,
+                           src_crs=acsrc.crs,
+                           dst_crs=acsrc.crs,
+                           resampling=resampling_method(resample))
+            S2_BOA_bands.append(newarr)
+            print(newarr.shape)
+            #S2_BOA_bands.append(arr)
+    """
+    for i, band in enumerate(bands):
+        print("Band ", i + 1, ':', bands[i])
         rhos_ = glob(os.path.join(Acolite_fp, '*rhos_' + band + '.tif'))[0]
         with rasterio.open(rhos_) as acsrc:
             arr = acsrc.read()
@@ -351,3 +390,29 @@ def apply_cloudmask(S2DotSafefp=None, bands=None, threshold=0.4, dilation_size=3
 def Water_mask(S2_ndarray, threshold):
 
     pass
+
+def apply_dos_all(S2_array):
+    S2_dos = np.zeros_like(S2_array)
+    for i in range(S2_dos.shape[-1]):
+        S2_dos[..., i] = apply_dos(S2_array[..., i])
+
+    return S2_dos
+
+def apply_dos(S2_band):
+    do = S2_band[S2_band!=0].min()
+    S2_band[S2_band!=0] = S2_band[S2_band!=0]-do
+    return S2_band
+
+def estimate_albedo(S2_arr, BOA=False):
+    weights = np.loadtxt('models/albedo_weights.txt')
+    if BOA:
+        weights_BOA = weights[[0, 1, 2, 3, 4, 5, 6, 7, 8, 11, 12]]
+        S2_tot_alb = np.zeros((S2_arr.shape[0],S2_arr.shape[1]))
+        for i in range(S2_arr.shape[2]):
+            S2_tot_alb += S2_arr[..., i] * weights_BOA[i]
+    else:
+        S2_tot_alb = np.zeros((S2_arr.shape[0],S2_arr.shape[1]))
+        for i in range(S2_arr.shape[2]):
+            S2_tot_alb += S2_arr[..., i] * weights[i]
+
+    return S2_tot_alb

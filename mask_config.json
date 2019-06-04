@@ -1,0 +1,11 @@
+{
+  "cloudmask": {
+    "average_over": 1,
+    "dilation": 3,
+    "threshold": 0.3
+  },
+  "landmask": {
+    "detailed": true
+  },
+  "resampling": "average"
+}
