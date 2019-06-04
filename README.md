@@ -6,17 +6,17 @@ Created for Øystein F. Skogvold's Master Thesis project, "Arctic Thin Sea Ice Th
 
 1. Clone or download repository
 2. Create a virtual environment and activate
-..* `>conda create -n venv python=3.6`
-..* `>conda activate venv´
+  1. `>conda create -n venv python=3.6`
+  2. `>conda activate venv´
 3. For installing the required packaged for running the scripts, first install the Rasterio package with the [guide](https://rasterio.readthedocs.io/en/stable/installation.html) from Rasterio documentation.
 4. Install required python packages from requirements.txt
-..* `pip install -r requirements.txt´
+  1. `pip install -r requirements.txt´
 5. For atmospheric correction:
-..1. Download the [ACOLITE atmospheric correction processor](https://odnature.naturalsciences.be/remsem/software-and-data/acolite) for windows
-..2. Unzip the file and add the `acolite_py_win` folder to the repository folder
+  1. Download the [ACOLITE atmospheric correction processor](https://odnature.naturalsciences.be/remsem/software-and-data/acolite) for windows
+  2. Unzip the file and add the `acolite_py_win` folder to the repository folder
 6. For detailed landmasking:
-..1. Download the land polygons from this [link](https://osmdata.openstreetmap.de/download/land-polygons-split-4326.zip)
-..2. Unzip the file and add `land_polygons.shp` to the `include` folder in the repository folder
+  1. Download the land polygons from this [link](https://osmdata.openstreetmap.de/download/land-polygons-split-4326.zip)
+  2. Unzip the file and add `land_polygons.shp` to the `include` folder in the repository folder
 
 You're set to run the scripts
 
